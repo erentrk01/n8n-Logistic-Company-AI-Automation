@@ -1,12 +1,23 @@
 # AI Automation for Freight Forwarding: Transport Request → Offer → TMS
 
-A working prototype built with **n8n** that automates the process described by a Munich freight forwarder:
+## The problem
+Freight forwarders receive transport requests (RFQs) by email every day, and each one is written differently: weight in tonnes, only a number of pallets, details hidden in a PDF. For every request, an employee has to read the email, type the data into the CRM, look up carrier prices, calculate the price and write the offer. After the customer confirms, the order is typed into the TMS again.
+
+This takes about **12–15 minutes of repetitive manual work per request**, slows down the response to the customer and creates a risk of typing errors.
+
+## A real business process
+The process automated here is taken from a **real freight forwarding company in Munich**, which defined it as the target process for automating its daily operations:
 
 > Customer request by email → AI recognises and structures the transport data → new / existing customer is recognised → data is saved in the CRM → purchase prices are checked → reply draft is created → employee checks and sends → confirmed order is transferred to the TMS.
 
+The company name is anonymised. All data in this repository is fictitious test data.
+
+## The solution
+A working prototype built with **n8n** that runs this process end to end, reducing the employee's work to two decisions: sending the offer and accepting the order.
+
 ![Before and after](docs/images/before-after.png)
 
-## What it does
+### What it does
 1. **Reads** incoming emails and PDF attachments.
 2. **Understands** them with Claude (structured JSON output): new request, order confirmation or other.
 3. **Validates** the data with plain code and asks the customer politely if something is missing.
