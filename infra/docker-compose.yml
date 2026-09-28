@@ -1,0 +1,91 @@
+# n8n + Twenty CRM in one network (demo setup)
+# Start:  docker compose up -d
+# n8n:    http://localhost:5678    Twenty: http://localhost:3000
+name: logistics-demo
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports: ["5678:5678"]
+    networks:
+      default:
+        aliases:
+          - n8n.demo.local   # lets Twenty reach n8n by a dotted hostname (webhook)
+    environment:
+      - GENERIC_TIMEZONE=Europe/Berlin
+      - TZ=Europe/Berlin
+      - N8N_HOST=localhost
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    restart: always
+
+  twenty-server:
+    image: twentycrm/twenty:${TAG:-latest}
+    ports: ["3000:3000"]
+    volumes:
+      - twenty-local-data:/app/packages/twenty-server/.local-storage
+    environment:
+      NODE_PORT: 3000
+      PG_DATABASE_URL: postgres://postgres:${PG_DATABASE_PASSWORD}@twenty-db:5432/default
+      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+      REDIS_URL: redis://twenty-redis:6379
+      STORAGE_TYPE: local
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    depends_on:
+      twenty-db: { condition: service_healthy }
+      twenty-redis: { condition: service_healthy }
+    healthcheck:
+      test: curl --fail http://localhost:3000/healthz
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: always
+
+  twenty-worker:
+    image: twentycrm/twenty:${TAG:-latest}
+    command: ["yarn", "worker:prod"]
+    volumes:
+      - twenty-local-data:/app/packages/twenty-server/.local-storage
+    environment:
+      PG_DATABASE_URL: postgres://postgres:${PG_DATABASE_PASSWORD}@twenty-db:5432/default
+      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+      REDIS_URL: redis://twenty-redis:6379
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+      STORAGE_TYPE: local
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    depends_on:
+      twenty-db: { condition: service_healthy }
+      twenty-server: { condition: service_healthy }
+    restart: always
+
+  twenty-db:
+    image: postgres:16
+    volumes:
+      - twenty-db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: default
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_DATABASE_PASSWORD}
+    healthcheck:
+      test: pg_isready -U postgres -h localhost -d postgres
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  twenty-redis:
+    image: redis
+    command: ["--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+volumes:
+  n8n_data:
+  twenty-db-data:
+  twenty-local-data:

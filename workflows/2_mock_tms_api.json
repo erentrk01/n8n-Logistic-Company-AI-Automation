@@ -1,0 +1,383 @@
+{
+  "name": "Logistics | 2 - Mock TMS API",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Mock TMS API\nStands in for the real TMS during the demo.\n\n`POST /webhook/tms/orders`\n```json\n{ \"externalRef\": \"<opportunity id>\",\n  \"customerName\": \"...\",\n  \"route\": \"...\",\n  \"chargeableKg\": 999,\n  \"priceEur\": 174.06 }\n```\n- **201** accepted + `orderNo`\n- **200** duplicate (same externalRef)\n- **422** validation error\n\nSheet tab `TMS_Orders` headers: orderNo, externalRef, customerName, route, chargeableKg, priceEur, receivedAt, status",
+        "height": 420,
+        "width": 400,
+        "color": "5"
+      },
+      "id": "f5868971-03cc-4ee1-819b-79f5fe294785",
+      "name": "Note: TMS",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tms/orders",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8865b6b4-6ba9-431c-8c97-d92fffbaaa11",
+      "name": "TMS: Receive Order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        464,
+        320
+      ],
+      "webhookId": "19a38d27-4c84-5c53-9e00-3f155b454ae9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8ab5811e-c281-5a2c-b2b6-7ff15b67a92a",
+              "name": "cfg.sheetId",
+              "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+              "type": "string"
+            },
+            {
+              "id": "d2f54e03-4e85-5537-90d5-e33ae0bcd285",
+              "name": "cfg.ordersSheetName",
+              "value": "TMS_Orders",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "9c651a17-86eb-47a4-876f-6e384071ea42",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        688,
+        320
+      ],
+      "notesInFlow": true,
+      "notes": "Edit all settings here"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.cfg.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Config').first().json.cfg.ordersSheetName }}"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "externalRef",
+              "lookupValue": "={{ $json.body.externalRef }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "100bbcb9-a068-4336-92c7-68107bec2c18",
+      "name": "Sheets: Find Existing Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        912,
+        320
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for All Items\n// Mock TMS: validates the order and makes the endpoint idempotent\n// (the same externalRef never creates a second order).\nconst request = $('Config').first().json.body ?? {};\nconst existing = $input.all()\n  .map((item) => item.json)\n  .find((row) => row && row.orderNo && String(row.externalRef) === String(request.externalRef));\n\nif (existing) {\n  return [{ json: { action: 'duplicate', response: { status: 'duplicate', orderNo: existing.orderNo, externalRef: existing.externalRef } } }];\n}\n\nconst required = ['externalRef', 'customerName', 'route', 'chargeableKg', 'priceEur'];\nconst errors = required\n  .filter((field) => request[field] === undefined || request[field] === null || request[field] === '')\n  .map((field) => `${field} is required`);\nif (request.chargeableKg !== undefined && !(Number(request.chargeableKg) > 0)) errors.push('chargeableKg must be > 0');\n\nif (errors.length) {\n  return [{ json: { action: 'reject', response: { status: 'rejected', errors } } }];\n}\n\nconst now = new Date();\nconst orderNo = `TA-${now.getFullYear()}-${String(now.getTime()).slice(-6)}`;\nconst order = {\n  orderNo,\n  externalRef: String(request.externalRef),\n  customerName: String(request.customerName),\n  route: String(request.route),\n  chargeableKg: Number(request.chargeableKg),\n  priceEur: Number(request.priceEur),\n  receivedAt: now.toISOString(),\n  status: 'NEW',\n};\nreturn [{ json: { action: 'create', ...order, response: { status: 'accepted', orderNo, externalRef: order.externalRef } } }];\n"
+      },
+      "id": "ad937c8a-878d-4ade-afc2-b182cf8e6e50",
+      "name": "Validate Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "42461fe1-f5b2-5451-825c-c20b036c60c8",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "create"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Create"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "dd3f64de-798b-5659-a37b-78ac41350243",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "duplicate"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Duplicate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ac045aa9-c57f-53be-943d-b37c9263c18c",
+                    "leftValue": "={{ $json.action }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "reject"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reject"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "46986af6-d68b-454b-992d-0d8962de0d33",
+      "name": "Route by Result",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1344,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.cfg.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Config').first().json.cfg.ordersSheetName }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "778aeb8a-fe04-4fed-966d-43d028c0753b",
+      "name": "Sheets: Save Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1568,
+        192
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Validate Order').first().json.response) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "9e8a59ac-f992-4b2b-af89-9dfc5f441d00",
+      "name": "Respond 201 Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "eccef6d9-e457-46ce-bde6-e9af1a5e871e",
+      "name": "Respond 200 Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "2d8d75c7-4569-4f6e-a877-66aead82e3b3",
+      "name": "Respond 422 Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        512
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "TMS: Receive Order": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Find Existing Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Find Existing Order": {
+      "main": [
+        [
+          {
+            "node": "Validate Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order": {
+      "main": [
+        [
+          {
+            "node": "Route by Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Save Order": {
+      "main": [
+        [
+          {
+            "node": "Respond 201 Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Result": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Save Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 200 Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 422 Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

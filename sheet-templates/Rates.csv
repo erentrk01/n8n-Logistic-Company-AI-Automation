@@ -1,0 +1,6 @@
+origin_cc,origin_zip2,dest_cc,dest_zip2,carrier,rate_per_100kg,min_charge,fuel_pct,transit_days,valid_until
+DE,80,AT,10,Carrier A,14.50,95,8,2,31.12.2026
+DE,80,AT,10,Carrier B,13.90,110,9,3,31.12.2026
+DE,80,IT,20,Carrier A,17.20,120,8,3,31.12.2026
+DE,90,IT,20,Carrier B,16.80,115,9,3,31.12.2026
+DE,01,AT,10,Carrier C,15.00,100,7,2,31.12.2026

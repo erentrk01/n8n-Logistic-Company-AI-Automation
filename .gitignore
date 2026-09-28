@@ -1,0 +1,17 @@
+# Secrets and local environment
+.env
+*.env
+!.env.example
+
+# n8n / Docker local data
+.n8n/
+n8n_data/
+*.sqlite
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Office lock files
+~$*

@@ -1,0 +1,471 @@
+{
+  "name": "Logistics | 3 - Confirmed Order to TMS",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Confirmed order -> TMS\nWhen an opportunity in Twenty is moved to the *won* stage, the order is sent to the TMS and the TMS order number is written back to the CRM.\n\n**Trigger A (default):** Twenty webhook\nSettings -> APIs & Webhooks -> URL `http://n8n:5678/webhook/twenty-events`\n\n**Trigger B (fallback):** polling every minute. Enable it if the webhook cannot reach n8n.\n\n**No loops, no duplicates:** only won opportunities *without* `tmsOrderNo` pass; the TMS itself is idempotent.",
+        "height": 520,
+        "width": 420,
+        "color": "5"
+      },
+      "id": "183fb9da-526e-42d7-9397-6eada471797e",
+      "name": "Note: Order",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twenty-events",
+        "options": {}
+      },
+      "id": "aecafbf9-85e2-4f75-98a7-5422ca409271",
+      "name": "Twenty Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        512,
+        304
+      ],
+      "webhookId": "fa2e8210-75ae-5983-9b2f-7fb0f9516166"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "f65fe217-7139-4293-815d-bce5d560fc1f",
+      "name": "Every Minute (fallback)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "459f2750-dfe2-533a-b9d9-b2b07f1adbac",
+              "name": "cfg.twentyBaseUrl",
+              "value": "http://twenty-server:3000",
+              "type": "string"
+            },
+            {
+              "id": "1803cbd1-669f-5674-9e7a-f4843de94111",
+              "name": "cfg.slackWebhookUrl",
+              "value": "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
+              "type": "string"
+            },
+            {
+              "id": "a08f3d8c-b50c-564e-b830-cf882cc5fc0b",
+              "name": "cfg.twentyStageWon",
+              "value": "CUSTOMER",
+              "type": "string"
+            },
+            {
+              "id": "258b0519-19d4-5abe-892e-fffd46941ddf",
+              "name": "cfg.tmsOrderUrl",
+              "value": "http://localhost:5678/webhook/tms/orders",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "bf36ef0e-2668-441f-b622-e4f80a45c60a",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        400
+      ],
+      "notesInFlow": true,
+      "notes": "Edit all settings here"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2f8e75ee-379b-5b35-b37c-adc9c762d088",
+              "leftValue": "={{ $json.body }}",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "011b24a8-7549-426a-95e6-da16ebf92ad8",
+      "name": "From Webhook?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        944,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for All Items\n// Accepts Twenty webhook events (both payload formats) and keeps opportunity events only.\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json.body ?? {};\n  const event = String(body.event ?? body.eventName ?? body.operation ?? '');\n  const raw = body.data ?? body.record ?? {};\n  const record = raw.after ?? raw;\n  if (!/^opportunity\\.(created|updated)$/.test(event) || !record.id) continue;\n  out.push({ json: { opportunityId: record.id, source: 'webhook', event } });\n}\nreturn out;\n"
+      },
+      "id": "70c7ba63-13f7-4be5-be18-5f4f85706ef9",
+      "name": "Parse Twenty Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/opportunities",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "={{ 'and(stage[eq]:' + $('Config').first().json.cfg.twentyStageWon + ',tmsOrderNo[is]:NULL)' }}"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5e420415-52fb-46fe-a982-60c5a8d689e3",
+      "name": "Twenty: Poll Won Opportunities",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        528
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for All Items\n// Turns the polling result into one item per opportunity.\nconst out = [];\nfor (const item of $input.all()) {\n  const data = item.json.data;\n  const list = Array.isArray(data) ? data : Object.values(data ?? {}).find(Array.isArray) ?? [];\n  for (const opp of list) {\n    if (opp?.id) out.push({ json: { opportunityId: opp.id, source: 'polling', event: 'poll' } });\n  }\n}\nreturn out;\n"
+      },
+      "id": "242124c5-f159-47e8-9c08-dd6727533f63",
+      "name": "Split Poll Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/opportunities/{{ $json.opportunityId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "depth",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d9669419-32e3-4075-beca-12acf9f9f286",
+      "name": "Twenty: Get Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for All Items\n// Hands over only won opportunities that (1) were not handed over yet and\n// (2) carry the transport data the TMS needs. Won cards without transport data\n// (e.g. Twenty's sample records or manually created cards) are skipped instead of\n// failing every minute during polling.\nconst cfg = $('Config').first().json.cfg;\nconst seen = new Set();\nconst out = [];\nconst skipped = [];\n\n$input.all().forEach((item, index) => {\n  const response = item.json;\n  const opp = response.id ? response : (response.data && typeof response.data === 'object'\n    ? Object.values(response.data)[0] : null);\n  if (!opp?.id || seen.has(opp.id)) return;\n  seen.add(opp.id);\n\n  if (opp.stage !== cfg.twentyStageWon) return;   // not confirmed yet\n  if (opp.tmsOrderNo) return;                      // already handed over -> stops webhook loops\n\n  const route = String(opp.route ?? '').trim();\n  const chargeableKg = Number(opp.chargeableKg ?? 0);\n  const priceEur = opp.amount?.amountMicros ? Math.round(opp.amount.amountMicros / 10000) / 100 : 0;\n  if (!route || !(chargeableKg > 0) || !(priceEur > 0)) {\n    skipped.push({ id: opp.id, name: opp.name, reason: 'missing route / chargeableKg / amount' });\n    return;\n  }\n\n  out.push({\n    json: {\n      opportunityId: opp.id,\n      opportunityName: opp.name,\n      tmsOrder: {\n        externalRef: opp.id,\n        customerName: String(opp.company?.name ?? '').trim() || opp.name,\n        route,\n        chargeableKg,\n        priceEur,\n      },\n    },\n    pairedItem: { item: index },\n  });\n});\n\nif (skipped.length) console.log('Skipped won opportunities without transport data:', JSON.stringify(skipped));\nreturn out;\n"
+      },
+      "id": "46a56218-b43c-492a-8399-a00431ca5d56",
+      "name": "Build TMS Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.tmsOrderUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.tmsOrder) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "3d70117d-8db9-4dac-af2e-5b145034e429",
+      "name": "TMS: Create Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2048,
+        400
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\nconst order = $('Build TMS Order').item.json;\nconst tms = $('TMS: Create Order').item.json;\nreturn {\n  json: {\n    opportunityId: order.opportunityId,\n    orderNo: tms.orderNo,\n    slackText: [\n      `:white_check_mark: *Auftrag an TMS übergeben* – ${tms.orderNo}${tms.status === 'duplicate' ? ' (bereits vorhanden)' : ''}`,\n      `*Auftrag:* ${order.opportunityName}`,\n      `*Strecke:* ${order.tmsOrder.route}`,\n      `*Frachtpfl. Gewicht:* ${order.tmsOrder.chargeableKg} kg`,\n    ].join('\\n'),\n  },\n};\n"
+      },
+      "id": "15dd0c67-e6e5-43e9-bdc6-38b25428ee08",
+      "name": "Format Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/opportunities/{{ $json.opportunityId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tmsOrderNo: $json.orderNo }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a726cbbb-072f-48f3-9812-0109dad57f68",
+      "name": "Twenty: Save TMS Order No",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Format Result').item.json.slackText }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "0c2651c6-e8f7-48d6-ba73-6ee3feec74c5",
+      "name": "Slack: Order Handed Over",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2704,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Twenty Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every Minute (fallback)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "From Webhook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Twenty Event": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Get Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Poll Won Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Split Poll Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Poll Result": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Get Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Get Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Build TMS Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build TMS Order": {
+      "main": [
+        [
+          {
+            "node": "TMS: Create Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TMS: Create Order": {
+      "main": [
+        [
+          {
+            "node": "Format Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Result": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Save TMS Order No",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Save TMS Order No": {
+      "main": [
+        [
+          {
+            "node": "Slack: Order Handed Over",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Webhook?": {
+      "main": [
+        [
+          {
+            "node": "Parse Twenty Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Twenty: Poll Won Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

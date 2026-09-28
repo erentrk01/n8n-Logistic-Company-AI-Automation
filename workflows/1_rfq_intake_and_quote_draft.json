@@ -1,0 +1,1487 @@
+{
+  "name": "Logistics | 1 - RFQ Intake & Quote Draft",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## RFQ Intake & Quote Draft\n\n**What it does**\n1. Reads new customer emails (+ PDF)\n2. AI extracts the transport data (JSON schema, strict)\n3. Code checks completeness\n4. Price from the price list (fixed formula)\n5. New / existing customer in Twenty CRM\n6. Offer draft in Gmail + Slack message\n\n**Safety rules**\n- Nothing is sent automatically\n- AI never calculates prices\n- No rate found -> no price, team is asked\n- Errors -> Error workflow\n\n**Setup:** edit the `Config` node, then select the credentials (Gmail, Google Sheets, Header Auth for Claude API and for Twenty).",
+        "height": 520,
+        "width": 400,
+        "color": "5"
+      },
+      "id": "0f52a021-1dfe-405d-b3b1-29154b5f9963",
+      "name": "Note: Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3520,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1  Intake & AI extraction",
+        "height": 420,
+        "width": 1320,
+        "color": "7"
+      },
+      "id": "f2fd6740-64a6-446e-aa34-076b414927ad",
+      "name": "Note: Intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3104,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2  Validation & routing\nStatus set by code: `complete`, `incomplete`, `not_rfq`, `order_confirmation`, `offer_reply`.\n**Rule:** a reply in a Gmail thread where we sent an offer is never ignored (deterministic, not AI).",
+        "height": 740,
+        "width": 920,
+        "color": "7"
+      },
+      "id": "2a445ac0-ef4b-4766-8188-16e8eac61233",
+      "name": "Note: Routing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1616,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3  Price list & freight cost\n`Rates` sheet columns: origin_cc, origin_zip2, dest_cc, dest_zip2, carrier, rate_per_100kg, min_charge, fuel_pct, transit_days, valid_until",
+        "height": 372,
+        "width": 1120,
+        "color": "4"
+      },
+      "id": "775221f9-13f3-49bd-9c73-c8e9f63d55e9",
+      "name": "Note: Pricing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4  Customer (Twenty CRM), offer draft & team message",
+        "height": 432,
+        "width": 2916,
+        "color": "6"
+      },
+      "id": "0f3579b7-b533-4f5b-9c3d-729edf2f20a8",
+      "name": "Note: CRM",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        456,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -from:me -category:promotions -category:social",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "6e736d57-43f2-4ae8-863d-01d10cf19e37",
+      "name": "New RFQ Email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -3056,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bc4de031-ec0b-53a2-b2fb-71ad36f3963a",
+              "name": "cfg.twentyBaseUrl",
+              "value": "http://twenty-server:3000",
+              "type": "string"
+            },
+            {
+              "id": "e970941a-67a9-5974-8425-5c7a5b0b4980",
+              "name": "cfg.twentyPublicUrl",
+              "value": "http://localhost:3000",
+              "type": "string"
+            },
+            {
+              "id": "d9d6b595-3bc7-50d5-bc04-b064b7e1ba40",
+              "name": "cfg.slackWebhookUrl",
+              "value": "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
+              "type": "string"
+            },
+            {
+              "id": "a0ad2248-5797-5d2b-956c-758a6ceb5829",
+              "name": "cfg.sheetId",
+              "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+              "type": "string"
+            },
+            {
+              "id": "718668b7-672e-55d8-9bca-89d58da746a9",
+              "name": "cfg.ratesSheetName",
+              "value": "Rates",
+              "type": "string"
+            },
+            {
+              "id": "b7184970-d26e-5fcc-a070-4ffcb4d2dca4",
+              "name": "cfg.anthropicBaseUrl",
+              "value": "https://api.anthropic.com",
+              "type": "string"
+            },
+            {
+              "id": "253b45a6-7a4f-593f-94b0-5d7b5cb4fef9",
+              "name": "cfg.anthropicModel",
+              "value": "claude-haiku-4-5-20251001",
+              "type": "string"
+            },
+            {
+              "id": "dda83209-86af-5694-bed1-f0961a9e047a",
+              "name": "cfg.twentyStageNew",
+              "value": "NEW",
+              "type": "string"
+            },
+            {
+              "id": "3d9cd566-238a-56d4-8870-32608bc41f68",
+              "name": "cfg.twentyUseCustomFields",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "bcd124c4-9c4c-510c-a38d-0e8e9443b2f1",
+              "name": "cfg.volumeFactorKgPerM3",
+              "value": 333,
+              "type": "number"
+            },
+            {
+              "id": "b0faacea-59a9-5642-adaa-76f47f966b44",
+              "name": "cfg.palletVolumeM3",
+              "value": 1.44,
+              "type": "number"
+            },
+            {
+              "id": "a4b15d25-165a-54ff-b950-7f0cd7f919db",
+              "name": "cfg.defaultMarginPct",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "d68cafd8-ec40-56c5-b215-ec2b3c9ae1dc",
+              "name": "cfg.offerValidityDays",
+              "value": 14,
+              "type": "number"
+            },
+            {
+              "id": "3df301e3-b245-53be-a45d-e9e34c83fc2b",
+              "name": "cfg.companyName",
+              "value": "Example Logistics GmbH",
+              "type": "string"
+            },
+            {
+              "id": "99c62a9f-3bca-55de-84ec-4504d2797ee5",
+              "name": "cfg.senderName",
+              "value": "Ihr Dispo-Team",
+              "type": "string"
+            },
+            {
+              "id": "0e2663cd-0c8b-5207-a537-718f03894f46",
+              "name": "cfg.termsLineDe",
+              "value": "Wir arbeiten ausschließlich auf Grundlage der ADSp 2017.",
+              "type": "string"
+            },
+            {
+              "id": "87a325c5-fb2c-5bf8-bf96-919016b9bd34",
+              "name": "cfg.termsLineEn",
+              "value": "All services are provided under the German Freight Forwarders' Standard Terms (ADSp 2017).",
+              "type": "string"
+            },
+            {
+              "id": "505c1a31-cbf4-540a-9e95-06f82d215eb3",
+              "name": "cfg.freemailDomains",
+              "value": "gmail.com,googlemail.com,gmx.de,gmx.net,web.de,t-online.de,outlook.com,outlook.de,hotmail.com,hotmail.de,yahoo.com,yahoo.de,icloud.com,live.com,aol.com",
+              "type": "string"
+            },
+            {
+              "id": "4b7b5474-6e85-5fa2-9bd6-02b9c9bbe448",
+              "name": "cfg.twentyThreadField",
+              "value": "gmailThreadId",
+              "type": "string"
+            },
+            {
+              "id": "b81f9d36-8bb8-5386-a795-243c9e4aa924",
+              "name": "cfg.twentyStageWon",
+              "value": "CUSTOMER",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8aec77d1-0a0b-4f1b-90c2-f1fcbbafd21c",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2848,
+        752
+      ],
+      "notesInFlow": true,
+      "notes": "Edit all settings here"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Turns one raw Gmail message into a clean, predictable structure.\nconst cfg = $('Config').first().json.cfg;\nconst mail = $input.item.json;\nconst binary = $input.item.binary ?? {};\n\nconst sender = mail.from?.value?.[0] ?? {};\nconst fromEmail = String(sender.address ?? '').trim().toLowerCase();\nconst fromName = String(sender.name ?? '').trim();\nconst domain = fromEmail.includes('@') ? fromEmail.split('@')[1] : '';\nconst freemailDomains = String(cfg.freemailDomains ?? '')\n  .split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);\n\n// Prefer the plain-text part; fall back to stripped HTML.\nconst htmlAsText = String(mail.html ?? '')\n  .replace(/<(br|\\/p|\\/div|\\/tr)\\s*\\/?>/gi, '\\n')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/[ \\t]+/g, ' ');\nconst bodyText = (String(mail.text ?? '').trim() || htmlAsText.trim()).slice(0, 12000);\n\n// First PDF attachment (if any) is passed on for text extraction.\nconst pdfKey = Object.keys(binary).find((key) => {\n  const file = binary[key] ?? {};\n  return String(file.mimeType ?? '').toLowerCase() === 'application/pdf'\n    || /\\.pdf$/i.test(String(file.fileName ?? ''));\n}) ?? null;\n\nreturn {\n  json: {\n    messageId: mail.id,\n    threadId: mail.threadId,\n    receivedAt: mail.date ?? new Date().toISOString(),\n    subject: String(mail.subject ?? '').trim(),\n    fromEmail,\n    fromName,\n    domain,\n    isFreemail: freemailDomains.includes(domain),\n    bodyText,\n    pdfKey,\n    attachmentCount: Object.keys(binary).length,\n  },\n  binary,\n};\n"
+      },
+      "id": "f332e807-4fd5-458e-9eff-423639512136",
+      "name": "Normalize Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2624,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "006ffbbf-4af9-5c90-924d-61d7e5276cdd",
+              "leftValue": "={{ $json.pdfKey }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "17ae648f-1eb8-4f0e-88dc-9748775dfbd2",
+      "name": "Has PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2400,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "={{ $json.pdfKey }}",
+        "options": {
+          "maxPages": 10
+        }
+      },
+      "id": "71198ce8-0e9f-4ce4-a04c-c71d694503b1",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -2176,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Builds the Claude API request (Messages API + structured outputs). The AI only EXTRACTS data - it never calculates prices.\nconst cfg = $('Config').first().json.cfg;\nconst mail = $('Normalize Email').item.json;\n\n// Separate what the sender NEWLY wrote from the quoted conversation below it\n// (Gmail \"Am ... schrieb\", Outlook/Hotmail \"Von:/From:\" blocks, \"> \" lines).\n// Without this, a reply like \"passt, wir beauftragen Sie\" would be read together with\n// our quoted offer and could be mistaken for a new transport request.\nconst QUOTE_START = [\n  /^\\s*>/,\n  /^\\s*(am|on)\\b.*(schrieb|wrote)/i,\n  /(schrieb|wrote)\\s*.*:\\s*$/i,\n  /^\\s*-{2,}\\s*(original|ursprüngliche|forwarded|weitergeleitete)/i,\n  /^\\s*_{5,}\\s*$/,\n];\n// \"Von:/From:\" only counts as a mail header if it contains an address or is followed by\n// \"Gesendet:/Sent:/Datum:/Date:\" - so \"Von: 80331 München\" in a request is NOT cut off.\nconst isHeaderBlock = (lines, i) => /^\\s*(von|from)\\s*:/i.test(lines[i])\n  && (/@/.test(lines[i]) || lines.slice(i + 1, i + 4).some((l) => /^\\s*(gesendet|sent|datum|date)\\s*:/i.test(l)));\nconst bodyLines = String(mail.bodyText ?? '').split(/\\r?\\n/);\nconst cut = bodyLines.findIndex((line, i) => QUOTE_START.some((re) => re.test(line)) || isHeaderBlock(bodyLines, i));\nconst newText = (cut === -1 ? bodyLines : bodyLines.slice(0, cut)).join('\\n').trim();\nconst quotedHistory = cut === -1 ? '' : bodyLines.slice(cut).join('\\n').trim().slice(0, 4000);\n\n// Input is either the PDF extraction result or (no PDF) the normalised email itself.\nconst pdfText = typeof $json.text === 'string' ? $json.text.trim().slice(0, 12000) : '';\nconst pdfError = $json.error ? String($json.error.message ?? $json.error) : null;\n\n// Claude structured outputs limit union types (\"string|null\"), so the schema uses\n// plain types: missing text = \"\" and missing numbers = 0. The validation step treats both as \"missing\".\nconst str = (description) => (description ? { type: 'string', description } : { type: 'string' });\nconst numb = (description) => (description ? { type: 'number', description } : { type: 'number' });\nconst place = {\n  type: 'object',\n  additionalProperties: false,\n  properties: {\n    country_code: str('ISO 3166-1 alpha-2, e.g. DE, AT, IT. Empty string if unknown'),\n    postal_code: str('Empty string if unknown'),\n    city: str('Empty string if unknown'),\n  },\n  required: ['country_code', 'postal_code', 'city'],\n};\n\nconst schema = {\n  type: 'object',\n  additionalProperties: false,\n  properties: {\n    email_type: {\n      type: 'string',\n      enum: ['transport_inquiry', 'order_confirmation', 'other'],\n      description: 'Based ONLY on the NEW MESSAGE part',\n    },\n    confirmation_quote: str('For order_confirmation: the confirming sentence, copied word for word. Otherwise empty string'),\n    language: { type: 'string', enum: ['de', 'en', 'other'] },\n    customer: {\n      type: 'object',\n      additionalProperties: false,\n      properties: {\n        first_name: str(), last_name: str(), company_name: str(), phone: str(),\n      },\n      required: ['first_name', 'last_name', 'company_name', 'phone'],\n    },\n    origin: place,\n    destination: place,\n    total_weight_kg: numb('Total gross weight in kg, only if stated, otherwise 0'),\n    total_volume_m3: numb('Total volume in m3, only if stated, otherwise 0'),\n    packages: {\n      type: 'array',\n      description: 'One entry per package type, exactly as stated in the email',\n      items: {\n        type: 'object',\n        additionalProperties: false,\n        properties: {\n          count: { type: 'integer' },\n          type: str('e.g. EUR pallet, one-way pallet, box, crate'),\n          length_cm: numb(), width_cm: numb(), height_cm: numb(), weight_kg_each: numb(),\n        },\n        required: ['count', 'type', 'length_cm', 'width_cm', 'height_cm', 'weight_kg_each'],\n      },\n    },\n    cargo_description: str(),\n    dangerous_goods: { type: 'boolean', description: 'true only if ADR / hazardous goods are mentioned' },\n    pickup_date: str('YYYY-MM-DD or as written (e.g. KW 42)'),\n    delivery_deadline: str(),\n    special_requirements: str('e.g. tail lift, appointment, temperature'),\n  },\n  required: [\n    'email_type', 'confirmation_quote', 'language', 'customer', 'origin', 'destination',\n    'total_weight_kg', 'total_volume_m3', 'packages', 'cargo_description',\n    'dangerous_goods', 'pickup_date', 'delivery_deadline', 'special_requirements',\n  ],\n};\n\nconst systemPrompt = [\n  'You extract transport request data for a German freight forwarder.',\n  'Rules:',\n  '- Extract ONLY information that is explicitly written in the email or attachment. Never guess or invent values.',\n  '- If a value is missing, use an empty string for text and 0 for numbers.',\n  '- Convert units only: tonnes to kg (1,2 t = 1200), metres to cm. Decimal commas are decimals (1,5 = 1.5).',\n  '- Do NOT calculate totals, volumes or prices. List packages exactly as described.',\n  '- Countries as ISO-2 codes (Deutschland = DE, Österreich = AT, Italien = IT).',\n  '- Classify email_type using ONLY the NEW MESSAGE. The QUOTED HISTORY is earlier conversation (often our own offer) and is context only.',\n  '- transport_inquiry: the sender asks for a price/offer for a transport.',\n  \"- order_confirmation: the sender accepts our offer or places the order (e.g. 'wir beauftragen Sie', 'Auftrag erteilt', 'passt, bitte durchführen', 'we accept your offer').\",\n  '- Questions, price negotiations, rejections, invoices, newsletters, spam and notifications are other.',\n  \"- Examples: 'passt, wir beauftragen Sie hiermit' = order_confirmation. 'Ja, bitte so durchführen' = order_confirmation. 'Geht es auch für 190 Euro?' = other. 'Können Sie 2 Paletten von Köln nach Paris anbieten?' = transport_inquiry.\",\n  '- For order_confirmation and other: fill transport fields only if they are newly written in the NEW MESSAGE, otherwise leave them empty / 0.',\n].join('\\n');\n\nconst userPrompt = [\n  `SUBJECT: ${mail.subject}`,\n  `FROM: ${mail.fromName} <${mail.fromEmail}>`,\n  '',\n  'NEW MESSAGE (written by the sender):',\n  newText || '(empty)',\n  '',\n  'QUOTED HISTORY (context only, do not extract from it):',\n  quotedHistory || '(none)',\n  '',\n  'ATTACHMENT TEXT:',\n  pdfText || '(no attachment)',\n].join('\\n');\n\nconst llmRequest = {\n  model: cfg.anthropicModel,\n  max_tokens: 2048,\n  temperature: 0,\n  system: systemPrompt,\n  messages: [{ role: 'user', content: userPrompt }],\n  output_config: { format: { type: 'json_schema', schema } },\n};\n\nreturn { json: { ...mail, newText, hasQuotedHistory: quotedHistory.length > 0, pdfTextLength: pdfText.length, pdfError, llmRequest } };\n"
+      },
+      "id": "eb5f5e69-7655-45c6-a156-a265b1ec6f9e",
+      "name": "Build AI Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1968,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.anthropicBaseUrl }}/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.llmRequest) }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "ce886e7b-e7ea-46b8-9c29-9ba193ebeadd",
+      "name": "AI: Extract Transport Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1744,
+        752
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Parses the AI answer and validates it with plain code (not with AI).\nconst cfg = $('Config').first().json.cfg;\nconst { llmRequest, ...ctx } = $('Build AI Request').item.json;\n\n// Claude Messages API response: the JSON is in the first text block.\nif ($json.stop_reason === 'refusal') throw new Error('AI refused the request');\nif ($json.stop_reason === 'max_tokens') throw new Error('AI answer was cut off (max_tokens) - increase max_tokens');\nconst textBlock = ($json.content ?? []).find((block) => block.type === 'text');\nif (!textBlock) throw new Error(`AI response has no text: ${JSON.stringify($json).slice(0, 300)}`);\n\nlet ai;\ntry {\n  ai = JSON.parse(textBlock.text);\n} catch (error) {\n  throw new Error(`AI returned invalid JSON: ${String(textBlock.text).slice(0, 300)}`);\n}\n\n// ---------- helpers ----------\nconst num = (value) => {\n  if (value === null || value === undefined || value === '') return null;\n  const n = typeof value === 'number' ? value : Number(String(value).replace(/\\s/g, '').replace(',', '.'));\n  return Number.isFinite(n) && n > 0 ? n : null;\n};\nconst clean = (value) => {\n  const s = value === null || value === undefined ? '' : String(value).trim();\n  return s.length ? s : null;\n};\nconst round = (n, d = 2) => (n === null ? null : Math.round(n * 10 ** d) / 10 ** d);\nconst normPlace = (p = {}) => ({\n  countryCode: clean(p.country_code)?.toUpperCase().slice(0, 2) ?? null,\n  postalCode: clean(p.postal_code)?.replace(/\\s+/g, '').toUpperCase() ?? null,\n  city: clean(p.city),\n});\n\nconst origin = normPlace(ai.origin);\nconst destination = normPlace(ai.destination);\n\n// ---------- quantities (calculated here, not by the AI) ----------\nconst packages = (ai.packages ?? [])\n  .map((p) => ({\n    count: Number.isInteger(Number(p.count)) && Number(p.count) > 0 ? Number(p.count) : null,\n    type: clean(p.type),\n    lengthCm: num(p.length_cm),\n    widthCm: num(p.width_cm),\n    heightCm: num(p.height_cm),\n    weightKgEach: num(p.weight_kg_each),\n  }))\n  .filter((p) => p.count !== null);\n\nconst allHaveDims = packages.length > 0 && packages.every((p) => p.lengthCm && p.widthCm && p.heightCm);\nconst allHaveWeight = packages.length > 0 && packages.every((p) => p.weightKgEach);\nconst palletCount = packages\n  .filter((p) => /pal/i.test(p.type ?? ''))\n  .reduce((sum, p) => sum + p.count, 0) || null;\n\nlet weightKg = num(ai.total_weight_kg);\nlet weightSource = weightKg ? 'stated' : null;\nif (!weightKg && allHaveWeight) {\n  weightKg = packages.reduce((sum, p) => sum + p.count * p.weightKgEach, 0);\n  weightSource = 'calculated_from_packages';\n}\n\nlet volumeM3 = num(ai.total_volume_m3);\nlet volumeSource = volumeM3 ? 'stated' : null;\nif (!volumeM3 && allHaveDims) {\n  volumeM3 = packages.reduce((sum, p) => sum + (p.count * p.lengthCm * p.widthCm * p.heightCm) / 1e6, 0);\n  volumeSource = 'calculated_from_dimensions';\n}\nif (!volumeM3 && palletCount) {\n  volumeM3 = palletCount * Number(cfg.palletVolumeM3);\n  volumeSource = 'estimated_from_pallets';\n}\n\n// ---------- completeness check ----------\nconst LABELS = {\n  origin: { de: 'Postleitzahl und Ort der Abholung', en: 'pickup postcode and city' },\n  destination: { de: 'Postleitzahl und Ort der Zustellung', en: 'delivery postcode and city' },\n  weight: { de: 'Gesamtgewicht in kg', en: 'total weight in kg' },\n  volume: { de: 'Maße (L x B x H in cm) oder Anzahl der Paletten', en: 'dimensions (L x W x H in cm) or number of pallets' },\n};\nconst missing = [];\nif (!origin.countryCode || !origin.postalCode) missing.push('origin');\nif (!destination.countryCode || !destination.postalCode) missing.push('destination');\nif (!weightKg) missing.push('weight');\nif (!volumeM3) missing.push('volume');\n\nconst language = String(ai.language ?? '').toLowerCase() === 'en' ? 'en' : 'de';\n// Claude may vary the casing of enum values, so compare in lower case.\nconst emailType = String(ai.email_type ?? '').toLowerCase();\nlet status = 'complete';\nif (emailType === 'order_confirmation') status = 'order_confirmation';\nelse if (emailType !== 'transport_inquiry') status = 'not_rfq';\nelse if (missing.length) status = 'incomplete';\n\nconst nameParts = ctx.fromName.split(/\\s+/).filter(Boolean);\n\nreturn {\n  json: {\n    ...ctx,\n    status,\n    emailType,\n    confirmationQuote: clean(ai.confirmation_quote),\n    language,\n    customer: {\n      firstName: clean(ai.customer?.first_name) ?? nameParts[0] ?? null,\n      lastName: clean(ai.customer?.last_name) ?? (nameParts.length > 1 ? nameParts.slice(1).join(' ') : null),\n      companyName: clean(ai.customer?.company_name),\n      phone: clean(ai.customer?.phone),\n    },\n    origin,\n    destination,\n    packages,\n    palletCount,\n    weightKg: round(weightKg, 1),\n    weightSource,\n    volumeM3: round(volumeM3, 2),\n    volumeSource,\n    cargoDescription: clean(ai.cargo_description),\n    dangerousGoods: ai.dangerous_goods === true,\n    pickupDate: clean(ai.pickup_date),\n    deliveryDeadline: clean(ai.delivery_deadline),\n    specialRequirements: clean(ai.special_requirements),\n    missing,\n    missingLabels: missing.map((key) => LABELS[key][language]),\n    ai: { model: $json.model ?? cfg.anthropicModel, inputTokens: $json.usage?.input_tokens ?? null, outputTokens: $json.usage?.output_tokens ?? null },\n  },\n};\n"
+      },
+      "id": "18611c9e-44af-45c4-8865-3e5a57101a7d",
+      "name": "Parse & Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1520,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "8cba5847-be13-530d-a429-2ac345588828",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "complete"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Complete"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d5cc0e11-bbf8-5039-aad5-203f291ebb4f",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "incomplete"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Incomplete"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5a9bdaaa-64be-500f-ae2e-7b44e328b1d0",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "not_rfq"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Not an RFQ"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "afd8ec55-8ec4-53c3-8152-f83bb84484f8",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "order_confirmation"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Order Confirmation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "158d34b8-cfcf-58fb-ba7f-543ce4130fef",
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "offer_reply"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reply to Offer"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "235a4f5d-5834-4a17-a87d-93c84577eb9e",
+      "name": "Route by Status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -856,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.cfg.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Config').first().json.cfg.ratesSheetName }}"
+        },
+        "options": {}
+      },
+      "id": "389a1196-5a45-44c9-bc2a-dc869588e873",
+      "name": "Sheets: Get Rates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -648,
+        352
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for All Items\n// Packs all price list rows into ONE item, so every request gets the full list.\nconst rates = $input.all()\n  .map((item) => item.json)\n  .filter((row) => row && Object.keys(row).length > 0 && row.carrier);\nreturn [{ json: { rates } }];\n"
+      },
+      "id": "160ffea9-7c10-4669-835e-51a3231a7237",
+      "name": "Aggregate Rates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -424,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "ca410b14-23c4-40ef-807c-1565c0fc2d7c",
+      "name": "Attach Rates",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -200,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Deterministic freight cost calculation from the price list (no AI involved).\nconst cfg = $('Config').first().json.cfg;\nconst { rates = [], ...r } = $json;\n\nconst num = (value) => {\n  if (value === null || value === undefined || value === '') return null;\n  const n = typeof value === 'number' ? value : Number(String(value).replace(/\\s|€/g, '').replace(',', '.'));\n  return Number.isFinite(n) ? n : null;\n};\nconst round2 = (n) => Math.round(n * 100) / 100;\n// First two digits of the postcode. Pads, because Google Sheets turns \"01\" into 1.\nconst zip2 = (value) => {\n  const digits = String(value ?? '').replace(/\\D/g, '');\n  return digits.length >= 2 ? digits.slice(0, 2) : digits.padStart(2, '0');\n};\nconst cc = (value) => String(value ?? '').trim().toUpperCase();\nconst today = new Date().toISOString().slice(0, 10);\nconst isValid = (row) => {\n  const until = String(row.valid_until ?? '').trim();\n  if (!until) return true;\n  const iso = /^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(until) ? until.split('.').reverse().join('-') : until;\n  return iso >= today;\n};\n\nconst lane = {\n  originCc: cc(r.origin.countryCode),\n  originZip2: zip2(r.origin.postalCode),\n  destCc: cc(r.destination.countryCode),\n  destZip2: zip2(r.destination.postalCode),\n};\n\nconst volumeFactor = Number(cfg.volumeFactorKgPerM3);\nconst volumeWeightKg = Math.round(r.volumeM3 * volumeFactor);\nconst chargeableKg = Math.max(Math.round(r.weightKg), volumeWeightKg);\n\nconst offers = rates\n  .filter((row) => cc(row.origin_cc) === lane.originCc\n    && zip2(row.origin_zip2) === lane.originZip2\n    && cc(row.dest_cc) === lane.destCc\n    && zip2(row.dest_zip2) === lane.destZip2\n    && isValid(row))\n  .map((row) => {\n    const ratePer100 = num(row.rate_per_100kg);\n    const minCharge = num(row.min_charge) ?? 0;\n    const fuelPct = num(row.fuel_pct) ?? 0;\n    if (ratePer100 === null) return null;\n    const base = Math.max(minCharge, (chargeableKg / 100) * ratePer100);\n    const cost = round2(base * (1 + fuelPct / 100));\n    return {\n      carrier: String(row.carrier),\n      ratePer100kg: ratePer100,\n      minCharge,\n      fuelPct,\n      transitDays: num(row.transit_days),\n      baseCost: round2(base),\n      cost,\n    };\n  })\n  .filter(Boolean)\n  .sort((a, b) => a.cost - b.cost);\n\nconst best = offers[0] ?? null;\nconst route = `${r.origin.postalCode} ${r.origin.city ?? ''} (${lane.originCc}) → ${r.destination.postalCode} ${r.destination.city ?? ''} (${lane.destCc})`.replace(/\\s+/g, ' ');\n\nconst slackManualText = [\n  ':red_circle: *Keine Rate gefunden* – bitte manuell kalkulieren',\n  `*Kunde:* ${r.customer.companyName ?? r.fromName ?? r.fromEmail} <${r.fromEmail}>`,\n  `*Strecke:* ${route}`,\n  `*Sendung:* ${r.weightKg} kg, ${r.volumeM3} m³ → frachtpfl. ${chargeableKg} kg`,\n  `*Lane-Schlüssel:* ${lane.originCc}-${lane.originZip2} → ${lane.destCc}-${lane.destZip2}`,\n].join('\\n');\n\nreturn {\n  json: {\n    ...r,\n    lane,\n    route,\n    volumeFactorKgPerM3: volumeFactor,\n    volumeWeightKg,\n    chargeableKg,\n    rateFound: best !== null,\n    bestOffer: best,\n    alternativeOffers: offers.slice(1, 4),\n    ratesChecked: rates.length,\n    slackManualText,\n  },\n};\n"
+      },
+      "id": "203b84c0-f70d-4c84-a10c-a92f907f3a01",
+      "name": "Calculate Freight Cost",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "73e93576-2ea0-5da3-b5d7-81b39f45998c",
+              "leftValue": "={{ $json.rateFound }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a434729-4cbc-4aa5-bb7f-640913fa0767",
+      "name": "Rate Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        232,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slackManualText }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "02decc58-4093-4e32-b0d8-451ac5dbe231",
+      "name": "Slack: Manual Pricing Needed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        472,
+        704
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/{{ $json.isFreemail ? 'people' : 'companies' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "={{ $json.isFreemail ? 'emails.primaryEmail[eq]:' + $json.fromEmail : 'domainName.primaryLinkUrl[ilike]:%' + $json.domain + '%' }}"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c764b2a1-1979-43d9-a79f-b5db6c8d9e6b",
+      "name": "Twenty: Find Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        472,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Decides \"new or existing customer\" from the Twenty search result.\nconst r = $('Calculate Freight Cost').item.json;\nconst response = $json;\n\nconst list = Array.isArray(response.data)\n  ? response.data\n  : Object.values(response.data ?? {}).find(Array.isArray) ?? [];\nconst hostOf = (url) => String(url ?? '').toLowerCase()\n  .replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split(/[/?#]/)[0];\nconst num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));\n\nlet match = null;\nif (r.isFreemail) {\n  match = list.find((p) => String(p.emails?.primaryEmail ?? '').toLowerCase() === r.fromEmail) ?? null;\n} else {\n  match = list.find((c) => hostOf(c.domainName?.primaryLinkUrl) === r.domain) ?? null;\n}\n\nconst customerStatus = match ? 'EXISTING' : 'NEW';\nconst companyName = r.customer.companyName\n  ?? (r.isFreemail ? `Privatkunde ${[r.customer.firstName, r.customer.lastName].filter(Boolean).join(' ') || r.fromEmail}` : r.domain);\n\nconst twentyCompanyPayload = { name: companyName };\nif (!r.isFreemail) twentyCompanyPayload.domainName = { primaryLinkUrl: `https://${r.domain}` };\n\nconst twentyPersonPayload = {\n  name: { firstName: r.customer.firstName ?? '', lastName: r.customer.lastName ?? '' },\n  emails: { primaryEmail: r.fromEmail },\n};\n\nreturn {\n  json: {\n    ...r,\n    customerStatus,\n    companyId: r.isFreemail ? (match?.companyId ?? null) : (match?.id ?? null),\n    personId: r.isFreemail ? (match?.id ?? null) : null,\n    companyName: r.isFreemail ? companyName : (match?.name ?? companyName),\n    marginPct: r.isFreemail ? null : num(match?.marginPct),\n    twentyCompanyPayload,\n    twentyPersonPayload,\n  },\n};\n"
+      },
+      "id": "3097e76c-f44a-428c-b96f-3a8b5441119a",
+      "name": "Resolve Customer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d2bd9410-0f8e-502a-b6c9-605a00ddf242",
+              "leftValue": "={{ $json.customerStatus }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "NEW"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "45861a75-9431-4891-9a2f-c6655295c15b",
+      "name": "New Customer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        904,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/companies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.twentyCompanyPayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "70df5e26-f855-458e-8741-ea2e14591eee",
+      "name": "Twenty: Create Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1128,
+        144
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/people",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...$('Resolve Customer').item.json.twentyPersonPayload, companyId: $json.id ?? Object.values($json.data ?? {})[0]?.id }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b8c7d4b9-a1bd-40b9-9ec2-20439501c06b",
+      "name": "Twenty: Create Person",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1352,
+        144
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Collects the IDs of the newly created company and person.\n// Both CRM calls continue on error (e.g. \"duplicate entry\" when a record is still in\n// Twenty's trash). The offer is still prepared and the team is warned instead of the run failing.\nconst base = $('Resolve Customer').item.json;\nconst idOf = (response) => {\n  if (!response || response.error) return null;\n  if (response.id) return response.id;\n  const inner = response.data && typeof response.data === 'object' ? Object.values(response.data)[0] : null;\n  return inner?.id ?? null;\n};\nconst reason = (response) => {\n  const text = JSON.stringify(response?.error ?? response ?? {});\n  return /duplicate|unique/i.test(text) ? 'existiert bereits – evtl. im CRM-Papierkorb' : 'konnte nicht angelegt werden';\n};\n\nconst companyResponse = $('Twenty: Create Company').item.json;\nconst companyId = idOf(companyResponse);\nconst personId = idOf($json);\n\nconst crmWarnings = [];\nif (!companyId) crmWarnings.push(`:warning: CRM: Firma „${base.companyName}\" ${reason(companyResponse)} – bitte im CRM prüfen`);\nif (!personId) crmWarnings.push(`:warning: CRM: Kontakt ${base.fromEmail} ${reason($json)} – bitte im CRM prüfen`);\n\nreturn { json: { ...base, customerStatus: 'NEW', companyId, personId, crmWarnings } };\n"
+      },
+      "id": "62210997-a9f9-4df1-8967-23bff199a08a",
+      "name": "New Customer Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Adds the margin, writes the offer email and prepares the CRM record.\nconst cfg = $('Config').first().json.cfg;\nconst r = $json;\nconst best = r.bestOffer;\n\nconst marginPct = r.marginPct ?? Number(cfg.defaultMarginPct);\nconst priceEur = Math.round(best.cost * (1 + marginPct / 100) * 100) / 100;\nconst marginEur = Math.round((priceEur - best.cost) * 100) / 100;\n\nconst validUntil = new Date(Date.now() + Number(cfg.offerValidityDays) * 86400000);\nconst locale = r.language === 'en' ? 'en-GB' : 'de-DE';\nconst eur = (n) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n);\nconst dec = (n, d = 2) => new Intl.NumberFormat(locale, { maximumFractionDigits: d }).format(n);\nconst date = (d) => new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' }).format(d);\n\nconst place = (p) => `${p.postalCode} ${p.city ?? ''} (${p.countryCode})`.replace(/\\s+/g, ' ');\nconst name = [r.customer.firstName, r.customer.lastName].filter(Boolean).join(' ');\nconst goods = r.language === 'en'\n  ? `${r.palletCount ? `${r.palletCount} pallet(s), ` : ''}${dec(r.weightKg, 1)} kg, ${dec(r.volumeM3)} m³`\n  : `${r.palletCount ? `${r.palletCount} Palette(n), ` : ''}${dec(r.weightKg, 1)} kg, ${dec(r.volumeM3)} m³`;\n\nconst de = [\n  name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,',\n  '',\n  'vielen Dank für Ihre Transportanfrage. Gerne bieten wir Ihnen folgenden Transport an:',\n  '',\n  `Abholung:              ${place(r.origin)}`,\n  `Zustellung:            ${place(r.destination)}`,\n  `Sendung:               ${goods}`,\n  `Frachtpflichtiges Gew.: ${dec(r.chargeableKg, 0)} kg`,\n  r.pickupDate ? `Abholtermin:           ${r.pickupDate}` : null,\n  best.transitDays ? `Laufzeit:              ca. ${best.transitDays} Werktag(e)` : null,\n  `Preis:                 ${eur(priceEur)} zzgl. gesetzl. MwSt., inkl. Dieselzuschlag`,\n  '',\n  r.dangerousGoods ? 'Hinweis: Da es sich um Gefahrgut handelt, benötigen wir vorab UN-Nummer und Sicherheitsdatenblatt.' : null,\n  r.volumeSource === 'estimated_from_pallets' ? 'Hinweis: Das Volumen wurde auf Basis von Standard-Europaletten angenommen. Bitte bestätigen Sie die Maße.' : null,\n  `Dieses Angebot ist gültig bis zum ${date(validUntil)}. ${cfg.termsLineDe}`,\n  '',\n  'Wir freuen uns auf Ihren Auftrag.',\n  '',\n  'Mit freundlichen Grüßen',\n  cfg.senderName,\n  cfg.companyName,\n];\n\nconst en = [\n  name ? `Dear ${name},` : 'Dear Sir or Madam,',\n  '',\n  'thank you for your transport request. We are pleased to offer the following transport:',\n  '',\n  `Pickup:            ${place(r.origin)}`,\n  `Delivery:          ${place(r.destination)}`,\n  `Shipment:          ${goods}`,\n  `Chargeable weight: ${dec(r.chargeableKg, 0)} kg`,\n  r.pickupDate ? `Pickup date:       ${r.pickupDate}` : null,\n  best.transitDays ? `Transit time:      approx. ${best.transitDays} working day(s)` : null,\n  `Price:             ${eur(priceEur)} plus VAT, incl. fuel surcharge`,\n  '',\n  r.dangerousGoods ? 'Note: as these are dangerous goods, we need the UN number and safety data sheet in advance.' : null,\n  r.volumeSource === 'estimated_from_pallets' ? 'Note: the volume was estimated based on standard euro pallets. Please confirm the dimensions.' : null,\n  `This offer is valid until ${date(validUntil)}. ${cfg.termsLineEn}`,\n  '',\n  'We look forward to your order.',\n  '',\n  'Kind regards',\n  cfg.senderName,\n  cfg.companyName,\n];\n\nconst twentyOpportunityPayload = {\n  name: `${r.companyName} | ${r.origin.postalCode} → ${r.destination.postalCode}`,\n  amount: { amountMicros: Math.round(priceEur * 1e6), currencyCode: 'EUR' },\n  stage: cfg.twentyStageNew,\n};\nif (r.companyId) twentyOpportunityPayload.companyId = r.companyId;\nif (r.personId) twentyOpportunityPayload.pointOfContactId = r.personId;\nif (cfg.twentyUseCustomFields) {\n  twentyOpportunityPayload.route = r.route;\n  twentyOpportunityPayload.chargeableKg = r.chargeableKg;\n}\n// The Gmail thread links a later customer reply (\"wir beauftragen Sie\") to this opportunity.\nif (cfg.twentyThreadField) twentyOpportunityPayload[cfg.twentyThreadField] = r.threadId;\n\nconst warnings = [\n  ...(r.crmWarnings ?? []),\n  r.dangerousGoods ? ':biohazard_sign: Gefahrgut (ADR) – bitte prüfen' : null,\n  r.volumeSource === 'estimated_from_pallets' ? ':straight_ruler: Volumen aus Palettenanzahl geschätzt' : null,\n  r.pdfError ? `:page_facing_up: PDF konnte nicht gelesen werden (${r.pdfError})` : null,\n].filter(Boolean);\n\nreturn {\n  json: {\n    ...r,\n    marginPct,\n    marginEur,\n    priceEur,\n    validUntil: validUntil.toISOString().slice(0, 10),\n    replySubject: /^(re|aw):/i.test(r.subject) ? r.subject : `Re: ${r.subject}`,\n    replyBody: (r.language === 'en' ? en : de).filter((line) => line !== null).join('\\n'),\n    twentyOpportunityPayload,\n    warnings,\n  },\n};\n"
+      },
+      "id": "b764d3e1-0b94-4ee5-b1ed-846c08de35d7",
+      "name": "Build Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1784,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/opportunities",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.twentyOpportunityPayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d00785de-5b10-438a-8c1f-e864d01f2e36",
+      "name": "Twenty: Create Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2008,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Adds the CRM record ID and prepares the team notification.\nconst cfg = $('Config').first().json.cfg;\nconst q = $('Build Quote').item.json;\nconst idOf = (response) => {\n  if (!response) return null;\n  if (response.id) return response.id;\n  const inner = response.data && typeof response.data === 'object' ? Object.values(response.data)[0] : null;\n  return inner?.id ?? null;\n};\nconst opportunityId = idOf($json);\nconst eur = (n) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);\nconst crmLink = opportunityId ? `${cfg.twentyPublicUrl}/object/opportunity/${opportunityId}` : null;\n\nconst slackText = [\n  `:package: *Neues Angebot bereit* (${q.customerStatus === 'NEW' ? 'Neukunde' : 'Bestandskunde'})`,\n  `*Kunde:* ${q.companyName} <${q.fromEmail}>`,\n  `*Strecke:* ${q.route}`,\n  `*Sendung:* ${q.weightKg} kg / ${q.volumeM3} m³ → frachtpfl. ${q.chargeableKg} kg`,\n  `*EK:* ${eur(q.bestOffer.cost)} (${q.bestOffer.carrier})  |  *VK:* ${eur(q.priceEur)}  |  *Marge:* ${q.marginPct}% (${eur(q.marginEur)})`,\n  ...q.warnings,\n  ':email: Entwurf liegt im Postfach – bitte prüfen und senden.',\n  crmLink ? `:link: CRM: ${crmLink}` : null,\n].filter(Boolean).join('\\n');\n\nreturn { json: { ...q, opportunityId, crmLink, slackText } };\n"
+      },
+      "id": "adcef88e-3033-4e72-8f5a-4d2008d961ac",
+      "name": "Attach Opportunity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2232,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.replySubject }}",
+        "message": "={{ $json.replyBody }}",
+        "options": {
+          "threadId": "={{ $json.threadId }}",
+          "sendTo": "={{ $json.fromEmail }}"
+        }
+      },
+      "id": "cb1e166e-ce49-444d-9fad-4f507f01c681",
+      "name": "Gmail: Quote Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2440,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "webhookId": "4bbdfa21-4b50-4cf1-b7fc-9af047438898"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Attach Opportunity').item.json.slackText }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2c624239-bc8f-4720-a50c-f093ed67391b",
+      "name": "Slack: Quote Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2664,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Prepares a polite \"please send the missing data\" draft plus a team message.\nconst cfg = $('Config').first().json.cfg;\nconst r = $json;\nconst name = [r.customer.firstName, r.customer.lastName].filter(Boolean).join(' ');\nconst list = r.missingLabels.map((label) => `- ${label}`).join('\\n');\n\nconst text = r.language === 'en'\n  ? [\n      name ? `Dear ${name},` : 'Dear Sir or Madam,',\n      '',\n      'thank you for your transport request. To give you an accurate price, we still need the following information:',\n      '',\n      list,\n      '',\n      'As soon as we have these details, you will receive our offer promptly.',\n      '',\n      'Kind regards',\n      cfg.senderName,\n      cfg.companyName,\n    ]\n  : [\n      name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,',\n      '',\n      'vielen Dank für Ihre Transportanfrage. Für ein genaues Angebot benötigen wir noch folgende Angaben:',\n      '',\n      list,\n      '',\n      'Sobald uns diese Informationen vorliegen, erhalten Sie umgehend unser Angebot.',\n      '',\n      'Mit freundlichen Grüßen',\n      cfg.senderName,\n      cfg.companyName,\n    ];\n\nconst slackText = [\n  ':warning: *Anfrage unvollständig* – Rückfrage-Entwurf liegt im Postfach',\n  `*Von:* ${r.fromName || '-'} <${r.fromEmail}>`,\n  `*Betreff:* ${r.subject || '-'}`,\n  `*Es fehlt:* ${r.missingLabels.join(', ')}`,\n].join('\\n');\n\nreturn {\n  json: {\n    ...r,\n    replySubject: /^(re|aw):/i.test(r.subject) ? r.subject : `Re: ${r.subject}`,\n    replyBody: text.join('\\n'),\n    slackText,\n  },\n};\n"
+      },
+      "id": "bbe9acd9-6bcf-415a-ba38-b8c6fcf86bc5",
+      "name": "Build Missing-Info Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -648,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.replySubject }}",
+        "message": "={{ $json.replyBody }}",
+        "options": {
+          "threadId": "={{ $json.threadId }}",
+          "sendTo": "={{ $json.fromEmail }}"
+        }
+      },
+      "id": "4616426b-bd89-4cbf-9594-425f226ca698",
+      "name": "Gmail: Missing-Info Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -424,
+        960
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "webhookId": "07f2d307-38e0-4e14-8767-2bb894e53cc7"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Build Missing-Info Reply').item.json.slackText }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "9a7f9ead-cf1a-4c85-b15b-397d31d0c832",
+      "name": "Slack: Missing Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        960
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "6386c704-cddc-4ccd-a241-28c3ba3ec677",
+      "name": "Ignore (not an RFQ)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -648,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Mark as read\nRuns after the main branch (lowest branch = executed last).\nIf the workflow fails, the email stays **unread** and the error workflow alerts the team.",
+        "height": 220,
+        "width": 480,
+        "color": "3"
+      },
+      "id": "20799fc5-9310-4d46-9ffb-750c5f465110",
+      "name": "Note: Mark read",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2656,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.messageId }}"
+      },
+      "id": "bbae99bc-95fc-4fa9-99bb-2299066aa307",
+      "name": "Gmail: Mark as Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -2400,
+        1408
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "webhookId": "48f90f7d-8fce-4465-85f9-3457aa3361dc"
+    },
+    {
+      "parameters": {
+        "content": "### 5  Customer replies (AI suggests, human decides)\n- Reply in a known offer thread -> **always** a team message (never ignored)\n- Confirmation = AI **or** clear keywords (e.g. *beauftragen*, *Auftrag erteilt*), negations excluded\n- Setting the card to *won* stays a manual click -> workflow 3 hands the order to the TMS",
+        "height": 300,
+        "width": 760,
+        "color": "6"
+      },
+      "id": "294c07b7-9ab5-541f-b127-883c8695d08c",
+      "name": "Note: Confirmation",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        1268
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.cfg.twentyBaseUrl }}/rest/opportunities",
+        "authentication": "genericCredentialType",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "={{ $('Config').first().json.cfg.twentyThreadField + '[eq]:' + $json.threadId }}"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        },
+        "genericAuthType": "httpBearerAuth"
+      },
+      "id": "f0d6de17-9d39-5185-afb2-03613b1afcb4",
+      "name": "Twenty: Find Quote by Thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1300,
+        752
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Team message for customer replies. The AI only SUGGESTS; an employee sets the\n// opportunity to \"won\" in the CRM (human in the loop).\nconst cfg = $('Config').first().json.cfg;\nconst r = $json;\nconst opp = r.threadOpportunity;\n\nconst eur = (micros) => (micros ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(micros / 1e6) : '-');\nconst sender = `${r.fromName || r.fromEmail} <${r.fromEmail}>`;\nconst excerpt = String(r.newText ?? '').replace(/\\s+/g, ' ').trim().slice(0, 300);\nconst said = r.confirmationQuote || excerpt;\nconst crm = opp ? `:link: CRM: ${cfg.twentyPublicUrl}/object/opportunity/${opp.id}` : null;\n\nlet outcome;\nlet lines;\nif (!opp) {\n  outcome = 'no_match';\n  lines = [\n    ':handshake: *Auftragsbestätigung erkannt* – keine passende Verkaufschance gefunden',\n    `*Von:* ${sender}`,\n    `*Betreff:* ${r.subject || '-'}`,\n    said ? `_„${said}“_` : null,\n    ':point_right: Bitte die Verkaufschance im CRM manuell zuordnen und auf *gewonnen* setzen.',\n  ];\n} else if (r.isConfirmation && opp.stage === cfg.twentyStageWon) {\n  outcome = 'already_won';\n  lines = [':information_source: *Auftragsbestätigung erkannt* – Verkaufschance ist bereits gewonnen', `*Auftrag:* ${opp.name}`, crm];\n} else if (r.isConfirmation) {\n  outcome = 'suggest_won';\n  lines = [\n    ':handshake: *Kunde hat bestätigt* – Vorschlag: Verkaufschance auf *gewonnen* setzen',\n    `*Auftrag:* ${opp.name}  |  *Angebot:* ${eur(opp.amount?.amountMicros)}`,\n    `*Von:* ${sender}`,\n    said ? `_„${said}“_` : null,\n    `:point_right: Bitte prüfen und im CRM auf *${cfg.twentyStageWon}* ziehen – danach geht der Auftrag automatisch ans TMS.`,\n    crm,\n  ];\n} else {\n  outcome = 'reply_needs_review';\n  lines = [\n    ':speech_balloon: *Kunde hat auf ein Angebot geantwortet* – keine eindeutige Bestätigung, bitte lesen',\n    `*Auftrag:* ${opp.name}  |  *Angebot:* ${eur(opp.amount?.amountMicros)}`,\n    `*Von:* ${sender}`,\n    excerpt ? `_„${excerpt}“_` : null,\n    crm,\n  ];\n}\n\nreturn { json: { messageId: r.messageId, outcome, confirmationSignal: r.confirmationSignal, slackText: lines.filter(Boolean).join('\\n') } };\n"
+      },
+      "id": "b73dc83e-13c0-59e2-b7ff-75ee10afa6ad",
+      "name": "Build Offer Reply Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -428,
+        1388
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.cfg.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slackText }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "df7861d4-ae66-5a4f-87e4-d44ac72ddefa",
+      "name": "Slack: Confirmation Suggested",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        1388
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Mode: Run Once for Each Item\n// Deterministic routing BEFORE trusting the AI classification:\n// a reply inside a Gmail thread where we already sent an offer is never ignored.\n// AI + keywords only decide whether that reply is a confirmation (the employee decides anyway).\nconst r = $('Parse & Validate').item.json;\nconst res = $json;\n\nconst list = res.error ? [] : (Array.isArray(res.data)\n  ? res.data\n  : Object.values(res.data ?? {}).find(Array.isArray) ?? []);\nconst threadOpportunity = [...list]\n  .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0] ?? null;\n\n// Backup signal for clear confirmations, in case the AI answers \"other\".\nconst text = String(r.newText ?? '');\nconst CONFIRM = /(beauftrag|auftrag\\s+(ist\\s+)?erteilt|angebot\\s+(wird\\s+)?angenommen|nehmen\\s+(das|ihr)\\s+angebot\\s+an|wir\\s+bestätigen|hiermit\\s+bestätig|bitte\\s+(durchführen|ausführen|buchen)|we\\s+accept|accept(ed)?\\s+your\\s+(offer|quote)|please\\s+proceed|go\\s+ahead)/i;\nconst NEGATION = /\\b(nicht|kein|keine|keinen|leider|zu\\s+teuer|absage|abgesagt|storn\\w*|cancel\\w*|declin\\w*|reject\\w*|not)\\b/i;\nconst keywordConfirm = CONFIRM.test(text) && !NEGATION.test(text);\nconst aiConfirm = r.emailType === 'order_confirmation';\nconst isConfirmation = aiConfirm || keywordConfirm;\n\nlet status = r.status;\nif (threadOpportunity) status = 'offer_reply';            // known offer thread -> always to the team\nelse if (isConfirmation) status = 'order_confirmation';   // confirmation, but thread unknown\n\nreturn {\n  json: {\n    ...r,\n    status,\n    threadOpportunity,\n    isConfirmation,\n    confirmationSignal: aiConfirm && keywordConfirm ? 'ai+keywords' : aiConfirm ? 'ai' : keywordConfirm ? 'keywords' : 'none',\n    threadLookupFailed: Boolean(res.error),\n  },\n};\n"
+      },
+      "id": "4024bf71-d269-5de1-afb6-df47db6390d8",
+      "name": "Apply Thread Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        752
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New RFQ Email": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email": {
+      "main": [
+        [
+          {
+            "node": "Has PDF?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail: Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Build AI Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Request": {
+      "main": [
+        [
+          {
+            "node": "AI: Extract Transport Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Extract Transport Data": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Find Quote by Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Get Rates": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Rates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Rates": {
+      "main": [
+        [
+          {
+            "node": "Calculate Freight Cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Freight Cost": {
+      "main": [
+        [
+          {
+            "node": "Rate Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Find Customer": {
+      "main": [
+        [
+          {
+            "node": "Resolve Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Customer": {
+      "main": [
+        [
+          {
+            "node": "New Customer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Create Company": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Create Person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Create Person": {
+      "main": [
+        [
+          {
+            "node": "New Customer Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Customer Context": {
+      "main": [
+        [
+          {
+            "node": "Build Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Quote": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Create Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Create Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Attach Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Quote Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Quote Draft": {
+      "main": [
+        [
+          {
+            "node": "Slack: Quote Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Missing-Info Reply": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Missing-Info Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Missing-Info Draft": {
+      "main": [
+        [
+          {
+            "node": "Slack: Missing Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build AI Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Status": {
+      "main": [
+        [
+          {
+            "node": "Attach Rates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sheets: Get Rates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Missing-Info Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore (not an RFQ)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Offer Reply Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Offer Reply Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Rates": {
+      "main": [
+        [
+          {
+            "node": "Attach Rates",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Rate Found?": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Find Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Manual Pricing Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Customer?": {
+      "main": [
+        [
+          {
+            "node": "Twenty: Create Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty: Find Quote by Thread": {
+      "main": [
+        [
+          {
+            "node": "Apply Thread Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Offer Reply Message": {
+      "main": [
+        [
+          {
+            "node": "Slack: Confirmation Suggested",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Thread Context": {
+      "main": [
+        [
+          {
+            "node": "Route by Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
